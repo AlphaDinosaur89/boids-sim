@@ -26,8 +26,8 @@ fn generate_fishes(amount: i32, width: i32, height: i32) -> Vec<Fish> {
                 y: y as f32
             },
             rng.random_range(0.0..=PI * 2.0), // 360 in rad pi * 2
-            50.0,
-            200.0,
+            100.0,
+            400.0,
             Color::BEIGE
         ))
     };
@@ -44,7 +44,7 @@ fn main() {
         .resizable()
         .build();
 
-    let mut fishes: Vec<Fish> = generate_fishes(1000, rl.get_screen_width(), rl.get_screen_height());
+    let mut fishes: Vec<Fish> = generate_fishes(1500, rl.get_screen_width(), rl.get_screen_height());
     
     while !rl.window_should_close() {
         let mut d = rl.begin_drawing(&thread);

@@ -1,20 +1,13 @@
 use raylib::prelude::*;
 
-pub fn away_from_points(pos: Vector2, points: &[Vector2], width: i32, height: i32) -> Vector2 {
+pub fn wall_repulsion(pos: Vector2, width: i32, height: i32) -> Vector2 {
     let mut result = Vector2::zero();
-    for p in points {
-        let dir = pos - *p;
-        if dir.length_sqr() > 0.0 {
-            result += dir.normalized() / dir.length_sqr(); // weighted repulsion
-        }
-    }
-
-    // Wall repulsion
     let margin = 20.0;
     let wall_strength = 1.0;
+
     // Left wall
     if pos.x < margin {
-        let dist = pos.x.max(1.0); // avoid div by zero
+        let dist = pos.x.max(1.0);
         result.x += wall_strength / (dist * dist);
     }
     // Right wall

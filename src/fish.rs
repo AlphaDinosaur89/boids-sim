@@ -1,16 +1,17 @@
 use raylib::prelude::*;
 use crate::{math::*, render::*};
+use rand::Rng;
 
-const ALIGNMENT_WEIGHT: f32 = 1.0;
-const COHESION_WEIGHT: f32 = 0.5;
-const SEPARATION_WEIGHT: f32 = 2.0;
+const ALIGNMENT_WEIGHT: f32 = 1.5;
+const COHESION_WEIGHT: f32 = 1.0;
+const SEPARATION_WEIGHT: f32 = 1.0;
 
-const ALIGNMENT_FORCE: f32 = 11.0;
-const COHESION_FORCE: f32 = 5.0;
-const SEPARATION_FORCE: f32 = 5.0;
-const STEERING_FORCE: f32 = 0.5;
+const ALIGNMENT_FORCE: f32 = 1.1;
+const COHESION_FORCE: f32 = 1.0;
+const SEPARATION_FORCE: f32 = 1.5;
+const STEERING_FORCE: f32 = 0.2;
 
-const DRAG: f32 = 1.5;
+const DRAG: f32 = 25.0;
 
 #[derive(Clone)]
 pub struct Fish {
@@ -21,7 +22,6 @@ pub struct Fish {
     max_speed: f32,
     color: Color,
     vision_radius: f32,
-    separation_radius: f32,
     speed: f32,
 }
 
@@ -34,30 +34,29 @@ impl Fish {
             min_speed,
             max_speed,
             color,
-            vision_radius: 25.0,
-            separation_radius: 12.0,
+            vision_radius: 15.0,
             speed: min_speed,
         }
     }
 
     pub fn update(&mut self, d: &RaylibDrawHandle, fishes: &Vec<Fish>) {
         let mut vision_fishes: Vec<&Fish> = vec![];
-        let mut separation_fishes: Vec<&Fish> = vec![];
+
+        let mut separation_vec = Vector2::zero();
 
         for fish in fishes.iter() {
-            let distance = fish.pos.distance_to(self.pos);
-            if distance > self.vision_radius || fish.id == self.id {continue}
+            if fish.id == self.id { continue; }
+            let offset = self.pos - fish.pos;
+            let dist_sqr = offset.length_sqr();
 
-            vision_fishes.push(fish);
-
-            if distance > self.separation_radius || fish.id == self.id {continue}
-            separation_fishes.push(fish);
+            if dist_sqr < self.vision_radius * self.vision_radius && dist_sqr > 0.0001 {
+                separation_vec += offset / dist_sqr;
+                vision_fishes.push(fish);
+            }
         }
 
-        let separation_positions: Vec<Vector2> = separation_fishes.iter().map(|f| f.pos).collect();
-        let mut separation_vec = Vector2::zero();
-        if !separation_positions.is_empty() {
-            separation_vec = away_from_points(self.pos, &separation_positions, d.get_screen_width(), d.get_screen_height()).normalized();
+        if separation_vec.length_sqr() > 0.0 {
+            separation_vec = separation_vec.normalized();
         }
 
         let fish_dirs: Vec<f32> = vision_fishes.iter().map(|f| f.dir).collect();
@@ -76,9 +75,12 @@ impl Fish {
             cohesion_vec = (center_of_mass(&fish_positions) - self.pos).normalized();
         }
 
+        let wall_vec = wall_repulsion(self.pos, d.get_screen_width(), d.get_screen_height());
+
         let mut steering = (separation_vec * SEPARATION_WEIGHT * SEPARATION_FORCE +
             alignment_vec * ALIGNMENT_WEIGHT * ALIGNMENT_FORCE +
-            cohesion_vec * COHESION_WEIGHT * COHESION_FORCE) * d.get_frame_time();
+            cohesion_vec * COHESION_WEIGHT * COHESION_FORCE +
+            wall_vec * SEPARATION_FORCE) * d.get_frame_time();
         if steering.length_sqr() > 0.0 {
             steering = steering.normalized() * STEERING_FORCE;
         } else {
@@ -95,15 +97,17 @@ impl Fish {
         let max_turn = max_turn_per_sec * d.get_frame_time();
         let clamped_diff = angle_diff.clamp(-max_turn, max_turn);
         self.dir += clamped_diff;
-        // Keep self.dir in [-PI, PI]
+        // Keep self.dir within [-PI, PI]
         if self.dir > std::f32::consts::PI { self.dir -= 2.0 * std::f32::consts::PI; }
         if self.dir < -std::f32::consts::PI { self.dir += 2.0 * std::f32::consts::PI; }
 
-        // Update speed based on steering force and drag
         let force_mag = steering.length();
         self.speed += (force_mag - DRAG * self.speed) * d.get_frame_time();
         self.speed = self.speed.clamp(self.min_speed, self.max_speed);
 
+        let mut rng = rand::rng();
+        let random_angle: f32 = rng.random_range(-0.05..=0.05); // ~±5.7 degrees
+        self.dir += random_angle;
         let dir_vec = Vector2 {
             x: self.dir.cos(),
             y: self.dir.sin()
